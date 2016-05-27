@@ -75,3 +75,14 @@ endif(DYNAMIC_LUA)
 
 # ====================================================================================
 
+set (WINLUA_DIR src/winlua)
+
+set (WINLUA_SRCS
+	${WINLUA_DIR}/main.cpp
+)
+
+add_executable (winlua ${WINLUA_SRCS})
+target_include_directories(winlua PUBLIC ${LUA_DIR})
+target_link_libraries(winlua lua)
+
+# ====================================================================================
