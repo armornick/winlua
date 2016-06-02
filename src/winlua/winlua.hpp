@@ -17,7 +17,6 @@ WinLua Time Utility Functions
 void winlua_push_date(lua_State *L, FILETIME& ft);
 void winlua_push_date(lua_State *L, SYSTEMTIME& st);
 
-int winlua_get_date(lua_State *L, int idx, FILETIME& ft);
 int winlua_get_date(lua_State *L, int idx, SYSTEMTIME& st);
 
 

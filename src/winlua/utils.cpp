@@ -63,12 +63,16 @@ WinLua Time Utility Functions
 
 void winlua_push_date(lua_State *L, FILETIME& ft)
 {
-	ULARGE_INTEGER ularge;
-	ularge.LowPart=ft.dwLowDateTime;
-	ularge.HighPart=ft.dwHighDateTime;
+	LARGE_INTEGER jan1970FT = {0};
+	jan1970FT.QuadPart = 116444736000000000I64; // january 1st 1970
 
-	// lua_pushinteger(L, static_cast<lua_Integer>(ularge.QuadPart));
-	lua_pushinteger(L, ularge.QuadPart);
+	ULARGE_INTEGER utcFT;
+	utcFT.LowPart=ft.dwLowDateTime;
+	utcFT.HighPart=ft.dwHighDateTime;
+
+	ULARGE_INTEGER utcDosTime;
+	utcDosTime.QuadPart = (utcFT.QuadPart - jan1970FT.QuadPart) / 10000000;
+	lua_pushinteger(L, utcDosTime.QuadPart);
 }
 
 void winlua_push_date(lua_State *L, SYSTEMTIME& st)
@@ -90,24 +94,6 @@ void winlua_push_date(lua_State *L, SYSTEMTIME& st)
 	lua_setfield(L, -2, "msec");
 	lua_pushinteger(L, st.wDayOfWeek);
 	lua_setfield(L, -2, "wday");
-}
-
-int winlua_get_date(lua_State *L, int idx, FILETIME& ft)
-{
-	idx = lua_absindex(L, idx);
-
-	if (lua_isinteger(L, idx))
-	{
-		ULARGE_INTEGER ularge;
-		ularge.QuadPart = lua_tointeger(L, idx);
-		ft.dwLowDateTime = ularge.LowPart;
-		ft.dwHighDateTime = ularge.HighPart;
-		return 1;
-	}
-	else
-	{
-		return 0;
-	}
 }
 
 int winlua_get_date(lua_State *L, int idx, SYSTEMTIME& st)

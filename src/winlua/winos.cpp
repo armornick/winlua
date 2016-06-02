@@ -122,62 +122,6 @@ static int winlua_time(lua_State *L)
 	return 1;
 }
 
-static int winlua_date(lua_State *L)
-{
-	SYSTEMTIME st;
-
-	const char *format = lua_isnoneornil(L, 1) ? NULL : luaL_checkstring(L, 1);
-	DWORD flags =  lua_isnoneornil(L, 1) ? DATE_LONGDATE | LOCALE_USE_CP_ACP : 0;
-
-	if (lua_isnoneornil(L, 2))
-	{
-		
-		GetSystemTime(&st);
-	}
-	else
-	{
-		FILETIME ft;
-		luaL_checktype(L, 2, LUA_TNUMBER);
-		winlua_get_date(L, 2, ft);
-		FileTimeToSystemTime(&ft, &st);
-	}
-
-	if (format != NULL && format[0] == '!')
-	{
-		format++; // "remove" ! from string
-	}
-	
-	if (format != NULL && format[0] == '*' && format[1] == 't')
-	{
-		winlua_push_date(L, st);
-		return 1;
-	}
-
-	wchar_t *formatW = format != NULL ? utf8_to_wstring(L, format) : NULL;
-
-
-	int needed = GetDateFormatEx(LOCALE_NAME_SYSTEM_DEFAULT, flags, &st, formatW, NULL, 0, NULL);
-	if (needed == 0)
-	{
-		lua_pushnil(L);
-		lua_pushinteger(L, GetLastError());
-		return 2;
-	}
-
-	wchar_t *buff = static_cast<wchar_t*>(lua_newuserdata(L, sizeof(wchar_t) * needed));
-	needed = GetDateFormatEx(LOCALE_NAME_SYSTEM_DEFAULT, flags, &st, formatW, buff, needed, NULL);
-	if (needed == 0)
-	{
-		lua_pushnil(L);
-		lua_pushinteger(L, GetLastError());
-		return 2;
-	}
-
-	wstring_to_utf8(L, buff);
-	lua_remove(L, -2); if (format != NULL) { lua_remove(L, -2); } // remove temporary buffers
-	return 1;
-}
-
 
 /* ------------------------------------------------------------
 WinLua Operating System module
@@ -189,7 +133,6 @@ static const luaL_Reg library_methods[] = {
 	{"remove", winlua_remove},
 	{"rename", winlua_rename},
 	{"time", winlua_time},
-	{"date", winlua_date},
 	{NULL, NULL}
 };
 
