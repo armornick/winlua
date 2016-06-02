@@ -79,6 +79,9 @@ set (WINLUA_DIR src/winlua)
 
 set (WINLUA_SRCS
 	${WINLUA_DIR}/main.cpp
+	${WINLUA_DIR}/utils.cpp
+	${WINLUA_DIR}/winos.cpp
+	${WINLUA_DIR}/fs.cpp
 )
 
 add_executable (winlua ${WINLUA_SRCS})
