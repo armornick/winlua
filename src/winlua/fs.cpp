@@ -121,6 +121,82 @@ static int fs_mkdir(lua_State *L)
 	return 1;
 }
 
+/* ------------------------------------------------------------
+File iterator functions & structures
+------------------------------------------------------------ */
+
+#define WINLUA_FINDFILES_META "WinLuaFindFilesUdata"
+
+struct WinLuaFindFilesUdata
+{
+	HANDLE handle;
+	WIN32_FIND_DATAW data;
+	bool finished;
+};
+
+static int findfiles__gc(lua_State *L)
+{
+	WinLuaFindFilesUdata *udata = static_cast<WinLuaFindFilesUdata*>(luaL_checkudata(L, 1, WINLUA_FINDFILES_META));
+	if (udata->handle != INVALID_HANDLE_VALUE)
+	{
+		FindClose(udata->handle);
+	}
+	return 0;
+}
+
+static void create_findfiles_meta(lua_State *L)
+{
+	luaL_newmetatable(L, WINLUA_FINDFILES_META);
+	lua_pushcfunction(L, findfiles__gc);
+	lua_setfield(L, -2, "__gc");
+	lua_pop(L, 1);
+}
+
+static int findfiles_next(lua_State *L)
+{
+	WinLuaFindFilesUdata *udata = static_cast<WinLuaFindFilesUdata*>(luaL_checkudata(L, lua_upvalueindex(1), WINLUA_FINDFILES_META));
+
+	/* was the end-of-search flag set during the previous iteration? */
+	if (udata->finished) { return 0; }
+
+	/* print the file name found in the previous iteration */
+	wstring_to_utf8(L, udata->data.cFileName);
+
+	/* move to the next file, checking for errors */
+	BOOL ret = FindNextFileW(udata->handle, &udata->data);
+	if (ret == 0)
+	{
+		DWORD err = GetLastError();
+		if (err == ERROR_NO_MORE_FILES)
+		{
+			udata->finished = true;
+		}
+		else
+		{
+			return luaL_error(L, "could not find next file (%d)", err);
+		}
+	}
+
+	return 1;
+}
+
+static int fs_find(lua_State *L)
+{
+	const char *filespec = luaL_checkstring(L, 1);
+	wchar_t *filespecW = utf8_to_wstring(L, filespec);
+	WinLuaFindFilesUdata *udata = static_cast<WinLuaFindFilesUdata*>(lua_newuserdata(L, sizeof(WinLuaFindFilesUdata)));
+	luaL_setmetatable(L, WINLUA_FINDFILES_META);
+
+	udata->handle = FindFirstFileW(filespecW, &udata->data);
+	if (udata->handle == INVALID_HANDLE_VALUE)
+	{
+		return luaL_error(L, "could not start search for '%s' (%d)", filespec, GetLastError());
+	}
+
+	lua_pushcclosure(L, findfiles_next, 1);
+	return 1;
+}
+
 
 /* ------------------------------------------------------------
 WinLua Filesystem module
@@ -132,11 +208,14 @@ static const luaL_Reg library_methods[] = {
 	{"currentdir", fs_currentdir},
 	{"symlink", fs_symlink},
 	{"mkdir", fs_mkdir},
+	{"find", fs_find},
 	{NULL, NULL}
 };
 
 int luaopen_fs(lua_State *L)
 {
+	create_findfiles_meta(L);
+
 	luaL_newlib(L, library_methods);
 	return 1;
 }
