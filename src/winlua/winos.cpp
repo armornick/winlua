@@ -62,7 +62,8 @@ static int winlua_putenv(lua_State *L)
 	}
 
 	lua_pop(L, 2); // pop name and value buffer
-	return 0;
+	lua_pushboolean(L, 1);
+	return 1;
 }
 
 static int winlua_remove(lua_State *L)
@@ -70,16 +71,44 @@ static int winlua_remove(lua_State *L)
 	const char *filename = luaL_checkstring(L, 1);
 	wchar_t *filenameW = utf8_to_wstring(L, filename);
 
-	BOOL ret = DeleteFileW(filenameW);
-	if (ret == 0)
+	DWORD is_dir = GetFileAttributesW(filenameW);
+
+	if (is_dir == INVALID_FILE_ATTRIBUTES)
 	{
 		DWORD err = GetLastError();
 		lua_pushnil(L);
-		lua_pushfstring(L, "could not delete file '%s' (%d)", filename, err);
+		lua_pushfstring(L, "could not determine attributes of '%s' (%d)", filename, err);
 		lua_pushinteger(L, err);
 		return 3;
 	}
-	return 0;
+
+	if (is_dir & FILE_ATTRIBUTE_DIRECTORY)
+	{
+		BOOL ret = RemoveDirectoryW(filenameW);
+		if (ret == 0)
+		{
+			DWORD err = GetLastError();
+			lua_pushnil(L);
+			lua_pushfstring(L, "could not delete directory '%s' (%d)", filename, err);
+			lua_pushinteger(L, err);
+			return 3;
+		}
+	}
+	else
+	{
+		BOOL ret = DeleteFileW(filenameW);
+		if (ret == 0)
+		{
+			DWORD err = GetLastError();
+			lua_pushnil(L);
+			lua_pushfstring(L, "could not delete file '%s' (%d)", filename, err);
+			lua_pushinteger(L, err);
+			return 3;
+		}
+	}
+
+	lua_pushboolean(L, 1);
+	return 1;
 }
 
 static int winlua_rename(lua_State *L)
