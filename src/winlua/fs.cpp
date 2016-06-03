@@ -1,4 +1,5 @@
 #include "winlua.hpp"
+#include <string.h>
 
 /* ------------------------------------------------------------
 WinLua Filesystem functions
@@ -197,6 +198,26 @@ static int fs_find(lua_State *L)
 	return 1;
 }
 
+static int fs_dir(lua_State *L)
+{
+	const char *directory = luaL_checkstring(L, 1);
+	char filespec[MAX_PATH+1];
+	_snprintf(filespec, MAX_PATH+1, "%s\\*", directory);
+	wchar_t *filespecW = utf8_to_wstring(L, filespec);
+
+	WinLuaFindFilesUdata *udata = static_cast<WinLuaFindFilesUdata*>(lua_newuserdata(L, sizeof(WinLuaFindFilesUdata)));
+	luaL_setmetatable(L, WINLUA_FINDFILES_META);
+
+	udata->handle = FindFirstFileW(filespecW, &udata->data);
+	if (udata->handle == INVALID_HANDLE_VALUE)
+	{
+		return luaL_error(L, "could not start search for '%s' (%d)", filespec, GetLastError());
+	}
+
+	lua_pushcclosure(L, findfiles_next, 1);
+	return 1;
+}
+
 
 /* ------------------------------------------------------------
 WinLua Filesystem module
@@ -209,6 +230,7 @@ static const luaL_Reg library_methods[] = {
 	{"symlink", fs_symlink},
 	{"mkdir", fs_mkdir},
 	{"find", fs_find},
+	{"dir", fs_dir},
 	{NULL, NULL}
 };
 
