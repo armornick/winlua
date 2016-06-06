@@ -53,16 +53,16 @@ const char *invkind_to_string(INVOKEKIND kind)
 /* ------------------------------------------------------------
 LuaWin TypeInfo utility functions
 ------------------------------------------------------------ */
-#define LUAWIN_TYPEINFO_META "luawin.TypeInfo"
+#define WINLUA_TYPEINFO_META "winlua.TypeInfo"
 
-void luawin_push_typeinfo(lua_State *L, ITypeInfo *obj)
+void winlua_push_typeinfo(lua_State *L, ITypeInfo *obj)
 {
-	luawin_push_interface(L, obj, LUAWIN_TYPEINFO_META);
+	winlua_push_interface(L, obj, WINLUA_TYPEINFO_META);
 }
 
-ITypeInfo** luawin_get_typeinfo(lua_State *L, int idx)
+ITypeInfo** winlua_get_typeinfo(lua_State *L, int idx)
 {
-	return static_cast<ITypeInfo**>(luaL_checkudata(L, idx, LUAWIN_TYPEINFO_META));
+	return static_cast<ITypeInfo**>(luaL_checkudata(L, idx, WINLUA_TYPEINFO_META));
 }
 
 static void typedesc_to_string(luaL_Buffer *buffer, TYPEDESC tdesc)
@@ -128,7 +128,7 @@ static void typedesc_to_string(luaL_Buffer *buffer, TYPEDESC tdesc)
 	}
 }
 
-static void luawin_push_elemdesc(lua_State *L, ELEMDESC desc)
+static void winlua_push_elemdesc(lua_State *L, ELEMDESC desc)
 {
 	unsigned short flags = desc.paramdesc.wParamFlags;
 
@@ -156,7 +156,7 @@ LuaWin TypeInfo methods
 static int typeinfo__gc(lua_State *L)
 {
 	printf("attempting to finalize ITypeInfo\n");
-	ITypeInfo **pobj = luawin_get_typeinfo(L, 1);
+	ITypeInfo **pobj = winlua_get_typeinfo(L, 1);
 	SafeRelease(*pobj);
 	*pobj = NULL;
 	return 0;
@@ -164,7 +164,7 @@ static int typeinfo__gc(lua_State *L)
 
 static int typeinfo_getname(lua_State *L)
 {
-	ITypeInfo *info = *(luawin_get_typeinfo(L, 1));
+	ITypeInfo *info = *(winlua_get_typeinfo(L, 1));
 	MEMBERID memid = static_cast<MEMBERID>(lua_isnoneornil(L, 2) ? -1 : luaL_checkinteger(L, 2));
 
 	BSTR nameW;
@@ -179,7 +179,7 @@ static int typeinfo_getname(lua_State *L)
 
 static int typeinfo_gettypeattr(lua_State *L)
 {
-	ITypeInfo *info = *(luawin_get_typeinfo(L, 1));
+	ITypeInfo *info = *(winlua_get_typeinfo(L, 1));
 
 	TYPEATTR *attrs;
 	if (FAILED(info->GetTypeAttr(&attrs)))
@@ -211,7 +211,7 @@ static int typeinfo_gettypeattr(lua_State *L)
 
 static int typeinfo_getfuncdesc(lua_State *L)
 {
-	ITypeInfo *info = *(luawin_get_typeinfo(L, 1));
+	ITypeInfo *info = *(winlua_get_typeinfo(L, 1));
 	MEMBERID i = static_cast<MEMBERID>(luaL_checkinteger(L, 2));
 
 	FUNCDESC *funcdesc;
@@ -228,7 +228,7 @@ static int typeinfo_getfuncdesc(lua_State *L)
 		lua_pushinteger(L, funcdesc->cParamsOpt);
 		lua_setfield(L, -2, "cParamsOpt");
 
-		luawin_push_elemdesc(L, funcdesc->elemdescFunc);
+		winlua_push_elemdesc(L, funcdesc->elemdescFunc);
 		lua_setfield(L, -2, "elemdescFunc");
 
 		lua_pushboolean(L, funcdesc->wFuncFlags & FUNCFLAG_FRESTRICTED);
@@ -241,7 +241,7 @@ static int typeinfo_getfuncdesc(lua_State *L)
 		lua_newtable(L);
 		for (int j = 0; j < funcdesc->cParams; j++)
 		{
-			luawin_push_elemdesc(L, funcdesc->lprgelemdescParam[j]);
+			winlua_push_elemdesc(L, funcdesc->lprgelemdescParam[j]);
 			lua_rawseti(L, -2, j+1);
 		}
 		lua_setfield(L, -2, "lprgelemdescParam");
@@ -254,7 +254,7 @@ static int typeinfo_getfuncdesc(lua_State *L)
 
 static int typeinfo_getreftypeinfo(lua_State *L)
 {
-	ITypeInfo *info = *(luawin_get_typeinfo(L, 1));
+	ITypeInfo *info = *(winlua_get_typeinfo(L, 1));
 	UINT i = static_cast<UINT>(luaL_checkinteger(L, 2));
 
 	HREFTYPE href; ITypeInfo *implTypeInfo;
@@ -265,7 +265,7 @@ static int typeinfo_getreftypeinfo(lua_State *L)
 	if (SUCCEEDED(info->GetRefTypeInfo(href, &implTypeInfo)))
 	{
 		// implTypeInfo->AddRef();
-		luawin_push_typeinfo(L, implTypeInfo);
+		winlua_push_typeinfo(L, implTypeInfo);
 		return 1;
 	}
 	return luaL_error(L, "GetRefTypeInfo on ITypeInfo failed");
@@ -300,7 +300,7 @@ static int dispatch_get_typeinfo(lua_State *L)
 	}
 
 	disp->Release();
-	luawin_push_typeinfo(L, info);
+	winlua_push_typeinfo(L, info);
 	return 1;
 }
 
@@ -318,7 +318,7 @@ static const luaL_Reg typeinfo_meta[] = {
 
 static void create_typeinfo_meta(lua_State *L)
 {
-	luaL_newmetatable(L, LUAWIN_TYPEINFO_META);
+	luaL_newmetatable(L, WINLUA_TYPEINFO_META);
 	lua_pushvalue(L, -1);
 	lua_setfield(L, -2, "__index");
 	luaL_setfuncs(L, typeinfo_meta, 0);
