@@ -124,3 +124,17 @@ int winlua_get_date(lua_State *L, int idx, SYSTEMTIME& st)
 		return 0;
 	}
 }
+
+/* ------------------------------------------------------------
+WinLua Module Utility Functions
+------------------------------------------------------------ */
+
+void winlua_at_exit(lua_State *L, const char *id, lua_CFunction finalizer)
+{
+	lua_newuserdata(L, 1);
+	lua_createtable(L, 0, 1);
+	lua_pushcfunction(L, finalizer);
+	lua_setfield(L, -2, "__gc");
+	lua_setmetatable(L, -2);
+	lua_setfield(L, LUA_REGISTRYINDEX, id);
+}
