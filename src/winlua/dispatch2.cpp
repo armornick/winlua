@@ -224,6 +224,31 @@ static int idispatch_gettypeinfo(lua_State *L)
 	return 1;
 }
 
+static void perform_invoke(lua_State *L, const char *member, IDispatch*& disp, DISPID& dispid, WORD type, DISPPARAMS& Params)
+{
+	EXCEPINFO excep = { 0 };
+	VARIANT Result; VariantInit(&Result);
+
+	HRESULT hr = disp->Invoke(dispid, IID_NULL,
+		LOCALE_SYSTEM_DEFAULT, type, &Params, 
+		&Result, &excep, NULL);
+
+	if (FAILED(hr))
+	{
+		if (hr == DISP_E_EXCEPTION)
+		{
+			const char *exDescription = wstring_to_utf8(L, excep.bstrDescription);
+			SysFreeString(excep.bstrDescription);
+			SysFreeString(excep.bstrSource);
+			SysFreeString(excep.bstrHelpFile);
+			luaL_error(L, "an exception occurred while performing operation on %s: %s", member, exDescription);
+		}
+		luaL_error(L, "operation on %s failed: %s", member, invoke_error_to_string(hr));
+	}
+
+	winlua_push_variant(L, Result);
+}
+
 static int idispatch_callmethod(lua_State *L)
 {
 	IDispatch *disp = *(winlua_get_idispatch(L, 1));
@@ -243,29 +268,8 @@ static int idispatch_callmethod(lua_State *L)
 	/* easy case with no arguments */
 	if (argc == 0)
 	{
-		EXCEPINFO excep = { 0 };
-		VARIANT Result;
-		VariantInit(&Result);
 		DISPPARAMS NoParams = { NULL, NULL, 0, 0 };
-
-		HRESULT hr = disp->Invoke(dispid, IID_NULL, 
-			LOCALE_SYSTEM_DEFAULT, DISPATCH_METHOD, &NoParams, 
-			&Result, &excep, NULL);
-
-		if (FAILED(hr))
-		{
-			if (hr == DISP_E_EXCEPTION)
-			{
-				const char *exDescription = wstring_to_utf8(L, excep.bstrDescription);
-				SysFreeString(excep.bstrDescription);
-				SysFreeString(excep.bstrSource);
-				SysFreeString(excep.bstrHelpFile);
-				return luaL_error(L, "an exception occurred while calling %s: %s", name, exDescription);
-			}
-			return luaL_error(L, "%s call failed: %s", name, invoke_error_to_string(hr));
-		}
-
-		winlua_push_variant(L, Result);
+		perform_invoke(L, name, disp, dispid, DISPATCH_METHOD, NoParams);
 		return 1;
 	}
 	else
@@ -288,29 +292,8 @@ static int idispatch_getproperty(lua_State *L)
 		return luaL_error(L, "GetIDsOfNames on IDispatch failed (name: '%s')", name);
 	}
 
-	EXCEPINFO excep = { 0 };
-	VARIANT Result;
-	VariantInit(&Result);
 	DISPPARAMS NoParams = { NULL, NULL, 0, 0 };
-
-	HRESULT hr = disp->Invoke(dispid, IID_NULL, 
-		LOCALE_SYSTEM_DEFAULT, DISPATCH_PROPERTYGET|DISPATCH_METHOD, &NoParams,
-		&Result, &excep, NULL);
-
-	if (FAILED(hr))
-	{
-		if (hr == DISP_E_EXCEPTION)
-		{
-			const char *exDescription = wstring_to_utf8(L, excep.bstrDescription);
-			SysFreeString(excep.bstrDescription);
-			SysFreeString(excep.bstrSource);
-			SysFreeString(excep.bstrHelpFile);
-			return luaL_error(L, "an exception occurred while getting %s: %s", name, exDescription);
-		}
-		return luaL_error(L, "%s call failed: %s", name, invoke_error_to_string(hr));
-	}
-
-	winlua_push_variant(L, Result);
+	perform_invoke(L, name, disp, dispid, DISPATCH_PROPERTYGET|DISPATCH_METHOD, NoParams);
 	return 1;
 }
 
@@ -334,32 +317,12 @@ static int idispatch_setproperty(lua_State *L)
 		return luaL_error(L, "GetIDsOfNames on IDispatch failed (name: '%s')", name);
 	}
 
-	VARIANT Result; VARIANT param; bool freeParam;
-	VariantInit(&Result);
+	VARIANT param; bool freeParam;
 	winlua_get_variant(L, 3, param, freeParam);
 
 	DISPPARAMS Params = { &param, &dispidNamed, 1, 1 };
-
-	HRESULT hr = disp->Invoke(dispid, IID_NULL, 
-		LOCALE_SYSTEM_DEFAULT, DISPATCH_PROPERTYPUT, &Params,
-		&Result, &excep, NULL);
-
+	perform_invoke(L, name, disp, dispid, DISPATCH_PROPERTYPUT, Params);
 	if (freeParam) VariantClear(&param);
-
-	if (FAILED(hr))
-	{
-		if (hr == DISP_E_EXCEPTION)
-		{
-			const char *exDescription = wstring_to_utf8(L, excep.bstrDescription);
-			SysFreeString(excep.bstrDescription);
-			SysFreeString(excep.bstrSource);
-			SysFreeString(excep.bstrHelpFile);
-			return luaL_error(L, "an exception occurred while setting %s: %s", name, exDescription);
-		}
-		return luaL_error(L, "%s call failed: %s", name, invoke_error_to_string(hr));
-	}
-
-	winlua_push_variant(L, Result);
 	return 1;
 }
 
