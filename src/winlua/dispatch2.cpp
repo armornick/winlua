@@ -21,16 +21,16 @@ static const char *invoke_error_to_string(HRESULT err)
 {
 	switch (err)
 	{
-		case DISP_E_BADPARAMCOUNT: return "invalid number of parameters";
-		case DISP_E_BADVARTYPE: return "invalid argument type";
-		case DISP_E_EXCEPTION: return "an exception was raised";
-		case DISP_E_MEMBERNOTFOUND: return "requested member does not exist";
-		case DISP_E_NONAMEDARGS: return "named arguments not supported";
-		case DISP_E_OVERFLOW: return "one or more argument(s) could not be coerced to the needed type";
-		case DISP_E_PARAMNOTFOUND: return "parameter not found";
-		case DISP_E_TYPEMISMATCH: return "one or more of the arguments could not be coerced";
-		case DISP_E_UNKNOWNINTERFACE: return "interface identifier passed in riid is not IID_NULL";
-		case DISP_E_PARAMNOTOPTIONAL: return "required parameter was omitted";
+		case DISP_E_BADPARAMCOUNT: return "invalid number of parameters (DISP_E_BADPARAMCOUNT)";
+		case DISP_E_BADVARTYPE: return "invalid argument type (DISP_E_BADVARTYPE)";
+		case DISP_E_EXCEPTION: return "an exception was raised (DISP_E_EXCEPTION)";
+		case DISP_E_MEMBERNOTFOUND: return "requested member does not exist (DISP_E_MEMBERNOTFOUND)";
+		case DISP_E_NONAMEDARGS: return "named arguments not supported (DISP_E_NONAMEDARGS)";
+		case DISP_E_OVERFLOW: return "one or more argument(s) could not be coerced to the needed type (DISP_E_OVERFLOW)";
+		case DISP_E_PARAMNOTFOUND: return "parameter not found (DISP_E_PARAMNOTFOUND)";
+		case DISP_E_TYPEMISMATCH: return "one or more of the arguments could not be coerced (DISP_E_TYPEMISMATCH)";
+		case DISP_E_UNKNOWNINTERFACE: return "interface identifier passed in riid is not IID_NULL (DISP_E_UNKNOWNINTERFACE)";
+		case DISP_E_PARAMNOTOPTIONAL: return "required parameter was omitted (DISP_E_PARAMNOTOPTIONAL)";
 	}
 	return "unknown error has occurred";
 }
@@ -111,6 +111,74 @@ void winlua_push_variant(lua_State *L, VARIANT& variant)
 	}
 }
 
+void winlua_get_variant(lua_State *L, int idx, VARIANT& variant, bool& shouldFree)
+{
+	shouldFree = false;
+	int ltype = lua_type(L, idx);
+
+	switch (ltype)
+	{
+		case LUA_TNIL:
+			V_VT(&variant) = VT_ERROR;
+			V_ERROR(&variant) = DISP_E_PARAMNOTFOUND;
+			break;
+
+		case LUA_TNUMBER:
+			if (lua_isinteger(L, idx))
+			{
+				V_VT(&variant) = VT_I8;
+				V_I8(&variant) = lua_tointeger(L, idx);
+			}
+			else
+			{
+				V_VT(&variant) = VT_R8;
+				V_R8(&variant) = lua_tonumber(L, idx);
+			}
+			break;
+
+		case LUA_TBOOLEAN:
+			V_VT(&variant) = VT_BOOL;
+			V_BOOL(&variant) = lua_toboolean(L, idx) ? VARIANT_TRUE : VARIANT_FALSE;
+			break;
+
+		case LUA_TSTRING:
+		{
+			const char *value = lua_tostring(L, idx);
+			wchar_t *valueW = utf8_to_wstring(L, value);
+			V_VT(&variant) = VT_BSTR;
+			V_BSTR(&variant) = SysAllocString(valueW);
+			// WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), L"'", 1, NULL, NULL);
+			// WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), valueW, lstrlenW(valueW), NULL, NULL);
+			// WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), L"'\n", 2, NULL, NULL);
+			lua_pop(L, 1);
+			shouldFree = true;
+		}
+		break;
+
+		case LUA_TUSERDATA:
+		{
+			IDispatch **pdisp = static_cast<IDispatch**>(luaL_testudata(L, idx, WINLUA_IDISPATCH_META));
+			if (pdisp != NULL)
+			{
+				V_VT(&variant) = VT_DISPATCH;
+				V_DISPATCH(&variant) = *pdisp;
+			}
+			else
+			{
+				V_VT(&variant) = VT_ERROR;
+				V_ERROR(&variant) = DISP_E_PARAMNOTFOUND;
+			}
+		}
+		break;
+
+		case LUA_TLIGHTUSERDATA:
+		default:
+			V_VT(&variant) = VT_ERROR;
+			V_ERROR(&variant) = DISP_E_PARAMNOTFOUND;
+			break;
+	}
+}
+
 
 /* ------------------------------------------------------------
 WinLua IDispatch methods
@@ -175,16 +243,25 @@ static int idispatch_callmethod(lua_State *L)
 	/* easy case with no arguments */
 	if (argc == 0)
 	{
+		EXCEPINFO excep = { 0 };
 		VARIANT Result;
 		VariantInit(&Result);
 		DISPPARAMS NoParams = { NULL, NULL, 0, 0 };
 
 		HRESULT hr = disp->Invoke(dispid, IID_NULL, 
 			LOCALE_SYSTEM_DEFAULT, DISPATCH_METHOD, &NoParams, 
-			&Result, NULL, NULL);
+			&Result, &excep, NULL);
 
 		if (FAILED(hr))
 		{
+			if (hr == DISP_E_EXCEPTION)
+			{
+				const char *exDescription = wstring_to_utf8(L, excep.bstrDescription);
+				SysFreeString(excep.bstrDescription);
+				SysFreeString(excep.bstrSource);
+				SysFreeString(excep.bstrHelpFile);
+				return luaL_error(L, "an exception occurred while calling %s: %s", name, exDescription);
+			}
 			return luaL_error(L, "%s call failed: %s", name, invoke_error_to_string(hr));
 		}
 
@@ -211,16 +288,74 @@ static int idispatch_getproperty(lua_State *L)
 		return luaL_error(L, "GetIDsOfNames on IDispatch failed (name: '%s')", name);
 	}
 
+	EXCEPINFO excep = { 0 };
 	VARIANT Result;
 	VariantInit(&Result);
 	DISPPARAMS NoParams = { NULL, NULL, 0, 0 };
 
 	HRESULT hr = disp->Invoke(dispid, IID_NULL, 
 		LOCALE_SYSTEM_DEFAULT, DISPATCH_PROPERTYGET|DISPATCH_METHOD, &NoParams,
-		&Result, NULL, NULL);
+		&Result, &excep, NULL);
 
 	if (FAILED(hr))
 	{
+		if (hr == DISP_E_EXCEPTION)
+		{
+			const char *exDescription = wstring_to_utf8(L, excep.bstrDescription);
+			SysFreeString(excep.bstrDescription);
+			SysFreeString(excep.bstrSource);
+			SysFreeString(excep.bstrHelpFile);
+			return luaL_error(L, "an exception occurred while getting %s: %s", name, exDescription);
+		}
+		return luaL_error(L, "%s call failed: %s", name, invoke_error_to_string(hr));
+	}
+
+	winlua_push_variant(L, Result);
+	return 1;
+}
+
+static int idispatch_setproperty(lua_State *L)
+{
+	IDispatch *disp = *(winlua_get_idispatch(L, 1));
+
+	if (lua_gettop(L) != 3)
+	{
+		return luaL_error(L, "SetProperty should be called with exactly 3 arguments (got %d)", lua_gettop(L));
+	}
+
+	const char *name = luaL_checkstring(L, 2);
+	wchar_t *nameW = utf8_to_wstring(L, name);
+
+	EXCEPINFO excep = { 0 };
+	DISPID dispid; DISPID dispidNamed  = DISPID_PROPERTYPUT;
+	if (FAILED(disp->GetIDsOfNames(IID_NULL, &nameW, 1, 
+		LOCALE_SYSTEM_DEFAULT, &dispid)))
+	{
+		return luaL_error(L, "GetIDsOfNames on IDispatch failed (name: '%s')", name);
+	}
+
+	VARIANT Result; VARIANT param; bool freeParam;
+	VariantInit(&Result);
+	winlua_get_variant(L, 3, param, freeParam);
+
+	DISPPARAMS Params = { &param, &dispidNamed, 1, 1 };
+
+	HRESULT hr = disp->Invoke(dispid, IID_NULL, 
+		LOCALE_SYSTEM_DEFAULT, DISPATCH_PROPERTYPUT, &Params,
+		&Result, &excep, NULL);
+
+	if (freeParam) VariantClear(&param);
+
+	if (FAILED(hr))
+	{
+		if (hr == DISP_E_EXCEPTION)
+		{
+			const char *exDescription = wstring_to_utf8(L, excep.bstrDescription);
+			SysFreeString(excep.bstrDescription);
+			SysFreeString(excep.bstrSource);
+			SysFreeString(excep.bstrHelpFile);
+			return luaL_error(L, "an exception occurred while setting %s: %s", name, exDescription);
+		}
 		return luaL_error(L, "%s call failed: %s", name, invoke_error_to_string(hr));
 	}
 
@@ -231,7 +366,7 @@ static int idispatch_getproperty(lua_State *L)
 /* ------------------------------------------------------------
 WinLua IDispatch functions
 ------------------------------------------------------------ */
-static int dispatch_get_typeinfo(lua_State *L)
+static int dispatch_create_object(lua_State *L)
 {
 	const char *progid = luaL_checkstring(L, 1);
 	wchar_t *progidW = utf8_to_wstring(L, progid);
@@ -254,6 +389,7 @@ static const luaL_Reg idispatch_meta[] = {
 	{"GetTypeInfo", idispatch_gettypeinfo},
 	{"CallMethod", idispatch_callmethod},
 	{"GetProperty", idispatch_getproperty},
+	{"SetProperty", idispatch_setproperty},
 	{NULL, NULL}
 };
 
@@ -279,6 +415,6 @@ int luaopen_dispatch_thin(lua_State *L)
 	/* create the typeinfo metatable */
 	create_idispatch_meta(L);
 	/* return the typeinfo constructor */
-	lua_pushcfunction(L, dispatch_get_typeinfo);
+	lua_pushcfunction(L, dispatch_create_object);
 	return 1;
 }
