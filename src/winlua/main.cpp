@@ -98,6 +98,7 @@ static const luaL_Reg preloadlibs[] = {
 	{LUA_DBLIBNAME, luaopen_debug},
 	{ "fs", luaopen_fs },
 	{"dispatch.typeinfo", luaopen_dispatch_typeinfo},
+	{"dispatch.thin", luaopen_dispatch_thin},
 	{NULL, NULL}
 };
 

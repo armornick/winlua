@@ -8,7 +8,6 @@
 /* ------------------------------------------------------------
 WinLua COM helper templates
 ------------------------------------------------------------ */
-
 template< typename T >
 void winlua_push_interface(lua_State *L, T obj, const char *meta)
 {
@@ -37,8 +36,10 @@ int LuaCreateObject(lua_State *L, wchar_t *progidW, IDispatch*& disp);
 const char *invkind_to_string(INVOKEKIND kind);
 
 /* ------------------------------------------------------------
-WinLua OLE functions
+WinLua Userdata functions
 ------------------------------------------------------------ */
+void winlua_push_idispatch(lua_State *L, IDispatch *obj);
+void winlua_push_typeinfo(lua_State *L, ITypeInfo *obj);
 
 
 #endif

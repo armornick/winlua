@@ -83,6 +83,7 @@ set (WINLUA_SRCS
 	${WINLUA_DIR}/winos.cpp
 	${WINLUA_DIR}/fs.cpp
 	${WINLUA_DIR}/dispatch.cpp
+	${WINLUA_DIR}/dispatch2.cpp
 )
 
 add_executable (winlua ${WINLUA_SRCS})
