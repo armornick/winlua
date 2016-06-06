@@ -164,8 +164,11 @@ static int idispatch_callmethod(lua_State *L)
 	wchar_t *nameW = utf8_to_wstring(L, name);
 
 	DISPID dispid;
-	disp->GetIDsOfNames(IID_NULL, &nameW, 1, 
-		LOCALE_SYSTEM_DEFAULT, &dispid);
+	if (FAILED(disp->GetIDsOfNames(IID_NULL, &nameW, 1, 
+		LOCALE_SYSTEM_DEFAULT, &dispid)))
+	{
+		return luaL_error(L, "GetIDsOfNames on IDispatch failed (name: '%s')", name);
+	}
 
 	int argc = lua_gettop(L) - 3; // -2 for the object and name, -1 for the temporary wstring
 
@@ -194,6 +197,36 @@ static int idispatch_callmethod(lua_State *L)
 	}
 }
 
+static int idispatch_getproperty(lua_State *L)
+{
+	IDispatch *disp = *(winlua_get_idispatch(L, 1));
+
+	const char *name = luaL_checkstring(L, 2);
+	wchar_t *nameW = utf8_to_wstring(L, name);
+
+	DISPID dispid;
+	if (FAILED(disp->GetIDsOfNames(IID_NULL, &nameW, 1, 
+		LOCALE_SYSTEM_DEFAULT, &dispid)))
+	{
+		return luaL_error(L, "GetIDsOfNames on IDispatch failed (name: '%s')", name);
+	}
+
+	VARIANT Result;
+	VariantInit(&Result);
+	DISPPARAMS NoParams = { NULL, NULL, 0, 0 };
+
+	HRESULT hr = disp->Invoke(dispid, IID_NULL, 
+		LOCALE_SYSTEM_DEFAULT, DISPATCH_PROPERTYGET|DISPATCH_METHOD, &NoParams,
+		&Result, NULL, NULL);
+
+	if (FAILED(hr))
+	{
+		return luaL_error(L, "%s call failed: %s", name, invoke_error_to_string(hr));
+	}
+
+	winlua_push_variant(L, Result);
+	return 1;
+}
 
 /* ------------------------------------------------------------
 WinLua IDispatch functions
@@ -220,6 +253,7 @@ static const luaL_Reg idispatch_meta[] = {
 	{"__gc", idispatch__gc},
 	{"GetTypeInfo", idispatch_gettypeinfo},
 	{"CallMethod", idispatch_callmethod},
+	{"GetProperty", idispatch_getproperty},
 	{NULL, NULL}
 };
 
