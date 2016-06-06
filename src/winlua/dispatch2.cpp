@@ -274,7 +274,35 @@ static int idispatch_callmethod(lua_State *L)
 	}
 	else
 	{
-		return luaL_error(L, "arguments currently not supported (%d)", lua_gettop(L));
+		if (argc > WINLUA_DISPATCH_MAXARGC)
+		{
+			return luaL_error(L, "more than %d arguments currently not supported (received %d arguments)", WINLUA_DISPATCH_MAXARGC, argc);
+		}
+
+		// optional parameters can be omitted but the last parameter must be
+		// a valid value
+		for (int i = argc-1; i >= 0; i--)
+		{
+			if (lua_isnil(L, 3+i)) argc--;
+			else break;
+		}
+
+		VARIANT params[WINLUA_DISPATCH_MAXARGC]; bool freeParams[WINLUA_DISPATCH_MAXARGC];
+
+		for (int i = 0; i < argc; i++)
+		{
+			winlua_get_variant(L, 3+i, params[i], freeParams[i]);
+		}
+		
+		DISPPARAMS Params = { params, NULL, argc, 0 };
+		perform_invoke(L, name, disp, dispid, DISPATCH_METHOD, Params);
+
+		for (int i = 0; i < argc; i++)
+		{
+			if (freeParams[i]) VariantClear(&params[i]);
+		}
+
+		return 1;
 	}
 }
 

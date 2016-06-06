@@ -41,5 +41,7 @@ WinLua Userdata functions
 void winlua_push_idispatch(lua_State *L, IDispatch *obj);
 void winlua_push_typeinfo(lua_State *L, ITypeInfo *obj);
 
+#define WINLUA_DISPATCH_MAXARGC 25
+
 
 #endif
