@@ -122,6 +122,21 @@ static int fs_mkdir(lua_State *L)
 	return 1;
 }
 
+static int fs_rmdir(lua_State *L)
+{
+	const char *dirname = luaL_checkstring(L, 1);
+	wchar_t *dirnameW = utf8_to_wstring(L, dirname);
+
+	BOOL ret = RemoveDirectoryW(dirnameW);
+	if (ret == 0)
+	{
+		return luaL_error(L, "could not delete directory '%s' (%d)", dirname, GetLastError());
+	}
+
+	lua_pushboolean(L, 1);
+	return 1;
+}
+
 /* ------------------------------------------------------------
 File iterator functions & structures
 ------------------------------------------------------------ */
@@ -229,6 +244,7 @@ static const luaL_Reg library_methods[] = {
 	{"currentdir", fs_currentdir},
 	{"symlink", fs_symlink},
 	{"mkdir", fs_mkdir},
+	{"rmdir", fs_rmdir},
 	{"find", fs_find},
 	{"dir", fs_dir},
 	{NULL, NULL}
