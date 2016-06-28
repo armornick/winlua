@@ -130,6 +130,7 @@ static int winlua_rename(lua_State *L)
 	return 0;
 }
 
+/*
 static int winlua_time(lua_State *L)
 {
 	SYSTEMTIME st;
@@ -150,7 +151,7 @@ static int winlua_time(lua_State *L)
 	winlua_push_date(L, ft);
 	return 1;
 }
-
+*/
 
 /* ------------------------------------------------------------
 WinLua Operating System module
@@ -161,7 +162,7 @@ static const luaL_Reg library_methods[] = {
 	{"putenv", winlua_putenv},
 	{"remove", winlua_remove},
 	{"rename", winlua_rename},
-	{"time", winlua_time},
+	// {"time", winlua_time},
 	{NULL, NULL}
 };
 
