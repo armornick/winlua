@@ -1,5 +1,5 @@
 #include "winlua.hpp"
-
+#include <time.h>
 
 /* ------------------------------------------------------------
 WinLua Table Utility Functions
@@ -123,6 +123,36 @@ int winlua_get_date(lua_State *L, int idx, SYSTEMTIME& st)
 	{
 		return 0;
 	}
+}
+
+int timet_to_systemtime(time_t &from, SYSTEMTIME& to)
+{
+	struct tm *tmp = gmtime(&from);
+	if (tmp == NULL)
+	{
+		return 0;
+	}
+
+	to.wYear = tmp->tm_year + 1900;
+	to.wMonth = tmp->tm_mon + 1;
+	to.wDayOfWeek = tmp->tm_wday;
+	to.wDay = tmp->tm_mday;
+	to.wHour = tmp->tm_hour;
+	to.wMinute = tmp->tm_min;
+	to.wSecond = (tmp->tm_sec > 59) ? 59 : tmp->tm_sec;
+	to.wMilliseconds = 0;
+
+	// printf("year %d, month %d, day %d, hour %d, minute %d, second %d\n", to.wYear, to.wMonth, to.wDay, to.wHour, to.wMinute, to.wSecond);
+	return 1;
+}
+
+int timet_to_filetime(time_t &from, FILETIME& to)
+{
+	SYSTEMTIME tmp;
+	timet_to_systemtime(from, tmp);
+	BOOL ret = SystemTimeToFileTime(&tmp, &to);
+	// printf("%d-%d-%d %d:%d:%d -> %d %d\n", tmp.wYear, tmp.wMonth, tmp.wDay, tmp.wHour, tmp.wMinute, tmp.wSecond, to.dwHighDateTime, to.dwLowDateTime);
+	return ret;
 }
 
 /* ------------------------------------------------------------

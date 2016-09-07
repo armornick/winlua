@@ -1,5 +1,6 @@
 #include "winlua.hpp"
 #include <string.h>
+#include <time.h>
 
 /* ------------------------------------------------------------
 WinLua Filesystem functions
@@ -233,6 +234,47 @@ static int fs_dir(lua_State *L)
 	return 1;
 }
 
+/* ------------------------------------------------------------
+File time function
+------------------------------------------------------------ */
+static time_t l_checktime (lua_State *L, int arg) {
+  lua_Integer t = luaL_checkinteger(L, arg);
+  luaL_argcheck(L, (time_t)t == t, arg, "time out-of-bounds");
+  return (time_t)t;
+}
+
+static int fs_touch(lua_State *L)
+{
+	const char *filepath = luaL_checkstring(L, 1);
+	wchar_t *filepathW = utf8_to_wstring(L, filepath);
+
+	HANDLE file = CreateFileW(filepathW, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (file == INVALID_HANDLE_VALUE)
+	{
+		return luaL_error(L, "could not open file '%s' (%d)", filepath, GetLastError());
+	}
+
+	lua_pop(L, 1); // pop the temporary wide string
+	time_t now; time(&now);
+
+	time_t atime = lua_isnoneornil(L, 2) ? now : l_checktime(L, 2);
+	time_t mtime = lua_isnoneornil(L, 3) ? atime : l_checktime(L, 3);
+
+	FILETIME atimeF, mtimeF;
+	timet_to_filetime(atime, atimeF); timet_to_filetime(mtime, mtimeF);
+
+	BOOL ret = SetFileTime(file, NULL, &atimeF, &mtimeF);
+	if (ret == 0)
+	{
+		CloseHandle(file);
+		return luaL_error(L, "could not change time of file '%s' (%d)", filepath, GetLastError());
+	}
+
+	CloseHandle(file);
+	lua_pushboolean(L, 1);
+	return 1;
+}
+
 
 /* ------------------------------------------------------------
 WinLua Filesystem module
@@ -247,6 +289,7 @@ static const luaL_Reg library_methods[] = {
 	{"rmdir", fs_rmdir},
 	{"find", fs_find},
 	{"dir", fs_dir},
+	{"touch", fs_touch},
 	{NULL, NULL}
 };
 
