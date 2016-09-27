@@ -196,10 +196,6 @@ static int idispatch_gettypeinfo(lua_State *L)
 {
 	IDispatch *disp = *(winlua_get_idispatch(L, 1));
 
-	lua_getglobal(L, "require");
-	lua_pushstring(L, "dispatch.typeinfo");
-	lua_call(L, 1, 0);
-
 	UINT count;
 	HRESULT ret = disp->GetTypeInfoCount(&count);
 	if (FAILED(ret))
@@ -403,9 +399,15 @@ int luaopen_dispatch_thin(lua_State *L)
 		}
 		winlua_at_exit(L, WINLUA_DISPATCH_ATEXIT, ole_finalizer);
 	}
-	/* create the typeinfo metatable */
+
+	/* import ITypeInfo metatable */
+	lua_getglobal(L, "require");
+	lua_pushstring(L, "dispatch.typeinfo");
+	lua_call(L, 1, 0);
+
+	/* create the IDispatch metatable */
 	create_idispatch_meta(L);
-	/* return the typeinfo constructor */
+	/* return the IDispatch constructor */
 	lua_pushcfunction(L, dispatch_create_object);
 	return 1;
 }
