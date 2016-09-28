@@ -80,8 +80,11 @@ set (WINLUA_DIR src/winlua)
 set (WINLUA_SRCS
 	${WINLUA_DIR}/main.cpp
 	${WINLUA_DIR}/utils.cpp
+	# module sources
 	${WINLUA_DIR}/winos.cpp
 	${WINLUA_DIR}/fs.cpp
+	${WINLUA_DIR}/shell.cpp
+	# dispatch module
 	${WINLUA_DIR}/dispatch.cpp
 	${WINLUA_DIR}/dispatch2.cpp
 )
