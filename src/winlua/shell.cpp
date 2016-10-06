@@ -57,6 +57,37 @@ static int shell_shldisp_filerun(lua_State *L)
 	return 0;
 }
 
+static int shell_shldisp_open(lua_State *L)
+{
+	VARIANT vDir;
+	VariantInit(&vDir);
+
+	if (lua_type(L, 1) == LUA_TNUMBER)
+	{
+		vDir.vt = VT_I4;
+		vDir.lVal = static_cast<LONG>(luaL_checkinteger(L, 1));
+	}
+	else
+	{
+		// const char *path = luaL_optstring(L, 1, "\\");
+		const char *path = luaL_checkstring(L, 1);
+
+		vDir.vt = VT_BSTR;
+		vDir.bstrVal = utf8_to_wstring(L, path);
+	}
+
+	IShellDispatch *shell = NULL;
+	
+	HRESULT ret = CoCreateInstance(CLSID_Shell, NULL, CLSCTX_INPROC_SERVER, IID_IShellDispatch, reinterpret_cast<void**>(&shell));
+	if (SUCCEEDED(ret))
+	{
+		shell->Open(vDir);
+
+		shell->Release();
+	}
+
+	return 0;
+}
 
 /* ------------------------------------------------------------
 WinLua Shell module
@@ -66,6 +97,7 @@ static const luaL_Reg library_methods[] = {
 	{"filetype", shell_filetype},
 	{"FileRun", shell_shldisp_filerun},
 	{"rundialog", shell_shldisp_filerun},
+	{"explorer", shell_shldisp_open},
 	{NULL, NULL}
 };
 
