@@ -84,6 +84,7 @@ set (WINLUA_SRCS
 	${WINLUA_DIR}/winos.cpp
 	${WINLUA_DIR}/fs.cpp
 	${WINLUA_DIR}/shell.cpp
+	${WINLUA_DIR}/registry.cpp
 	# dispatch module
 	${WINLUA_DIR}/dispatch.cpp
 	${WINLUA_DIR}/dispatch2.cpp

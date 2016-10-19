@@ -96,8 +96,9 @@ static const luaL_Reg loadedlibs[] = {
 
 static const luaL_Reg preloadlibs[] = {
 	{LUA_DBLIBNAME, luaopen_debug},
-	{ "fs", luaopen_fs },
-	{ "shell", luaopen_shell },
+	{"fs", luaopen_fs},
+	{"shell", luaopen_shell},
+	{"registry", luaopen_registry},
 	{"dispatch.typeinfo", luaopen_dispatch_typeinfo},
 	{"dispatch.thin", luaopen_dispatch_thin},
 	{NULL, NULL}
